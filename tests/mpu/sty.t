@@ -1,0 +1,18 @@
+test sty_zero
+    LDY #$AB
+    STY $CD
+    .byte $2
+assert mem.0xCD 0xAB
+
+test sty_zero_y
+    LDX #$A
+    LDY #$EF
+    STY $50,X
+    .byte $2
+assert mem.0x5A 0xEF
+
+test sty_abs
+    LDY #$EF
+    STY $ABCD
+    .byte $2
+assert mem.0xABCD 0xEF

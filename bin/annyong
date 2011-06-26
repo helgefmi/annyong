@@ -1,0 +1,30 @@
+#!/usr/bin/env python
+
+import sys
+from optparse import OptionParser
+
+from annyong.annyong import Annyong
+from annyong.tests import run_nestest
+
+def main():
+    parser = OptionParser()
+    parser.add_option('-n', '--nestest', dest='nestest',
+                      action='store', metavar='FILE',
+                      help='run the nestest.nes test suite')
+    parser.add_option('-f', '--file', dest='run_file',
+                      action='store', metavar='FILE',
+                      help='load an iNES/NES 2.0 file and start simulation')
+
+    opts, _ = parser.parse_args()
+
+    if opts.run_file:
+        annyong = Annyong()
+        annyong.load_rom(opts.run_file)
+        annyong.start()
+    elif opts.nestest:
+        run_nestest(opts.nestest)
+
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main())
