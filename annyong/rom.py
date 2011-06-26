@@ -6,9 +6,22 @@ class Rom(object):
         pass
 
     def __init__(self):
-        pass
+        # For Rom's attributes, look in reset()
+        self.reset()
+
+    def reset(self):
+        # From header
+        self.mirroring = None
+        self.battery_sram = None
+        self.has_trainer = None
+        self.mapper_id = None
+        # Raw data
+        self.trainer_raw = None
+        self.prg_raw = None
+        self.chr_raw = None
 
     def load_raw(self, raw):
+        self.reset()
         raw = StringIO(raw)
 
         # Bytes 0-4
@@ -27,10 +40,10 @@ class Rom(object):
                 chr_count
             )
 
-        self._mirroring = 'v' if flags1 & 1 else ('4' if flags1 & 8 else 'h')
-        self._battery_sram = flags1 & 2 > 0
-        has_trainer = flags1 & 4 > 0
-        self._mapper_no = ((flags1 >> 4) & 0xF) | (flags2 & 0xF0)
+        self.mirroring = 'v' if flags1 & 1 else ('4' if flags1 & 8 else 'h')
+        self.battery_sram = flags1 & 2 > 0
+        self.has_trainer = flags1 & 4 > 0
+        self.mapper_id = ((flags1 >> 4) & 0xF) | (flags2 & 0xF0)
         is_nes2 = (flags2 >> 2) & 3 == 2
 
         # Bytes 8-16
@@ -40,23 +53,24 @@ class Rom(object):
         else:
             assert False
 
-        # 16-528 (if trainer is present)
-        if has_trainer:
-            self._trainer_raw = raw.read(512)
+        # Trainer data (if it's present)
+        if self.has_trainer:
+            self.trainer_raw = raw.read(512)
         else:
-            self._trainer_raw = None
+            self.trainer_raw = None
 
         # PRG ROM data
         prg_len = prg_count * 16384
-        self._prg_raw = raw.read(prg_len)
-        if len(self._prg_raw) != prg_len:
+        self.prg_raw = raw.read(prg_len)
+        if len(self.prg_raw) != prg_len:
             raise Rom.InvalidRomException('not enough data for the PRG pages')
 
         # CHR ROM data
         chr_len = chr_count * 8192
-        self._chr_raw = raw.read(chr_len)
-        if len(self._chr_raw) != chr_len:
+        self.chr_raw = raw.read(chr_len)
+        if len(self.chr_raw) != chr_len:
             raise Rom.InvalidRomException('not enough data for the CHR pages')
 
+        # Make sure we've read everything.
         if raw.read(1):
             raise Rom.InvalidRomException('unused data')
