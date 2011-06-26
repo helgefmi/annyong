@@ -4,7 +4,7 @@ from annyong.mappers.mapper0 import Mapper0
 from annyong.mpu.mpu6502 import Mpu6502
 from annyong.rom import Rom
 
-class Annyong(object):
+class NES(object):
     # Indexed by iNES' mapper ids.
     mappers = (
         Mapper0,
@@ -24,7 +24,7 @@ class Annyong(object):
         self.rom.load_raw(raw)
 
         # Create the mapper this ROM uses.
-        self.mapper = Annyong.mappers[self.rom.mapper_id](self)
+        self.mapper = NES.mappers[self.rom.mapper_id](self)
 
         # Initializes read/write subscribers, and loads the rom into the mpu and
         # ppu.

@@ -2,26 +2,26 @@ from __future__ import absolute_import
 
 from StringIO import StringIO
 
-from annyong.annyong import Annyong
+from annyong.nes import NES
 from annyong.mpu.mpu6502 import Mpu6502
 
 def run_nestest(rom_path):
-    annyong = Annyong()
-    annyong.load_rom(rom_path)
+    nes = NES()
+    nes.load_rom(rom_path)
 
     # This is just so the logs can be diffed
-    annyong.mpu.reg.ps.set(0x24)
-    annyong.mpu.reg.sp = 0xFD
+    nes.mpu.reg.ps.set(0x24)
+    nes.mpu.reg.sp = 0xFD
 
     # This test compares the trace output of our mpu and nestest.log, so we need
     # to capture this.
-    annyong.mpu.set_trace_output(StringIO())
+    nes.mpu.set_trace_output(StringIO())
     try:
-        annyong.mpu.run(0xC000)
-    except annyong.mpu.InvalidOpcodeException:
+        nes.mpu.run(0xC000)
+    except nes.mpu.InvalidOpcodeException:
         pass
 
-    trace_output = annyong.mpu.trace_output.getvalue()
+    trace_output = nes.mpu.trace_output.getvalue()
     trace_lines = trace_output.strip().split('\n')
     with open('trace.log', 'w') as file:
         file.write(trace_output)
