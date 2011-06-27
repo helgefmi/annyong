@@ -1,4 +1,7 @@
-def disassemble(fn, opcode, operands):
+import struct
+from annyong.util import signed_byte
+
+def disassemble(fn, opcode, addrmode, operands, simple_trace):
     # To have better code, these opcodes were writting as one method in the mpu,
     # so we can't infer their mnemonics by looking at the method name.
     branch_opcodes = {
@@ -7,12 +10,37 @@ def disassemble(fn, opcode, operands):
     }
 
     if opcode in branch_opcodes:
-        name = branch_opcodes[opcode]
+        asm = branch_opcodes[opcode]
     else:
         # This will also make NOP2 into NOP.
-        name = fn.__name__[3:6].upper()
+        asm = fn.__name__[3:6].upper()
 
-    return name
+    if simple_trace:
+        return asm
+
+    addrmode_fmts = {
+        'impl': '',
+        'imm': '#$%02X',
+        'acc': 'A',
+        'zp': '$%02X',
+        'zp x': '$%02X,X',
+        'zp y': '$%02X,Y',
+        'zp ind x': '($%02X,X)',
+        'zp ind y': '($%02X),Y',
+        'abs': '$%04X',
+        'abs x': '$%04X,X',
+        'abs y': '$%04X,Y',
+        'abs ind': '($%04X)',
+    }
+
+    asm_extra = ''
+    if operands:
+        bytes = ''.join(chr(o) for o in operands)
+        operands = struct.unpack('H' if len(bytes) > 1 else 'B', bytes)[0]
+
+    asm_extra = ' %s' % (addrmode_fmts[addrmode.mnemonic] % operands)
+    asm += asm_extra
+    return asm.strip().ljust(11)
 
 def trace_step(mpu, opcode):
     fn, addrmode, _ = mpu._opcodes[opcode]
@@ -21,7 +49,8 @@ def trace_step(mpu, opcode):
     operands = [mpu.memory.get_byte(mpu.reg.pc + i)
                     for i in xrange(1, num_operands + 1)]
 
-    asm = disassemble(fn, opcode, operands)
+    simple_trace = getattr(mpu.trace_output, 'simple_trace', False)
+    asm = disassemble(fn, opcode, addrmode, operands, simple_trace)
 
     cyc = (mpu.cycles * 3) % 341
     sl = (mpu.cycles * 3) / 341

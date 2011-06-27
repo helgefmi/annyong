@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 from annyong.mappers.mapper0 import Mapper0
 from annyong.mpu.mpu6502 import Mpu6502
+from annyong.ppu.ppu import PPU
 from annyong.rom import Rom
 
 class NES(object):
@@ -11,6 +12,7 @@ class NES(object):
     )
     def __init__(self):
         self.mpu = Mpu6502()
+        self.ppu = PPU()
         self.rom = Rom()
         self.mapper = None
 
@@ -26,9 +28,12 @@ class NES(object):
         # Create the mapper this ROM uses.
         self.mapper = NES.mappers[self.rom.mapper_id](self)
 
-        # Initializes read/write subscribers, and loads the rom into the mpu and
-        # ppu.
+        # Initializes read/write subscribers, and loads the rom into
+        # the mpu and ppu.
         self.mapper.connect()
         
     def start(self):
+        tracefile = open('trace.log', 'w')
+        self.mpu.set_trace_output(tracefile)
         self.mpu.run()
+        tracefile.close()

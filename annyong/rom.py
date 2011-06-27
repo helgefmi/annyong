@@ -16,12 +16,17 @@ class Rom(object):
         self.has_trainer = None
         self.mapper_id = None
         # Raw data
+        self.raw = None
         self.trainer_raw = None
-        self.prg_raw = None
-        self.chr_raw = None
+        self.prg_banks = []
+        self.chr_banks = []
+
+    def reload(self):
+        self.load_raw(self.raw)
 
     def load_raw(self, raw):
         self.reset()
+        self.raw = raw
         raw = StringIO(raw)
 
         # Bytes 0-4
@@ -60,16 +65,18 @@ class Rom(object):
             self.trainer_raw = None
 
         # PRG ROM data
-        prg_len = prg_count * 16384
-        self.prg_raw = raw.read(prg_len)
-        if len(self.prg_raw) != prg_len:
-            raise Rom.InvalidRomException('not enough data for the PRG pages')
+        for i in xrange(prg_count):
+            data = raw.read(0x4000)
+            if len(data) != 0x4000:
+                raise Rom.InvalidRomException('prg_count is invalid')
+            self.prg_banks.append(data)
 
         # CHR ROM data
-        chr_len = chr_count * 8192
-        self.chr_raw = raw.read(chr_len)
-        if len(self.chr_raw) != chr_len:
-            raise Rom.InvalidRomException('not enough data for the CHR pages')
+        for i in xrange(prg_count):
+            data = raw.read(0x2000)
+            if len(data) != 0x2000:
+                raise Rom.InvalidRomException('prg_count is invalid')
+            self.chr_banks.append(data)
 
         # Make sure we've read everything.
         if raw.read(1):

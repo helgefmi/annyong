@@ -15,7 +15,9 @@ def run_nestest(rom_path):
 
     # This test compares the trace output of our mpu and nestest.log, so we need
     # to capture this.
-    nes.mpu.set_trace_output(StringIO())
+    strio = StringIO()
+    strio.simple_trace = True
+    nes.mpu.set_trace_output(strio)
     try:
         nes.mpu.run(0xC000)
     except nes.mpu.InvalidOpcodeException:

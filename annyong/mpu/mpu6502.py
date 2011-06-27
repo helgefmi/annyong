@@ -3,7 +3,7 @@ from inspect import getargspec
 from annyong.util.bitset import Bitset
 from annyong.mpu.debug import trace_step
 from annyong.mpu.flags import *
-from annyong.mpu.memory import Memory
+from annyong.memory import Memory
 from annyong.util import signed_byte
 
 # decorators {{{
@@ -45,8 +45,6 @@ class Mpu6502(object):
         def get_opcode(self):
             return self._opcode
 
-    def get_opcode(self):
-        return self._opcode
     class Registers(object):
         def __init__(self):
             self.pc = None          # Program Counter, 16 bit
@@ -60,7 +58,7 @@ class Mpu6502(object):
         self._addrmodes = {}
         self._opcodes = [None] * 256
         self.reg = Mpu6502.Registers()
-        self.memory = Memory()
+        self.memory = Memory(0x10000)
         self.cycles = 0
         self.trace_output = None
 
@@ -193,7 +191,7 @@ class Mpu6502(object):
     def get_absolute(self):
         return self.memory.get_word(self.reg.pc), 0
 
-    @defaddrmode('abs ind x', 2)
+    @defaddrmode('abs ind', 2)
     def get_absolute_indirect(self):
         op, _ = self.get_absolute()
         # Low and high byte must be taken from the same page; it wraps around in
@@ -559,7 +557,7 @@ class Mpu6502(object):
         self.reg.ps.set(self.pop_byte() | (1 << FLAG_SIXTH))
         self.reg.pc = self.pop_word()
 
-    @defopcode((0x4C, 'abs', 3), (0x6C, 'abs ind x', 5))
+    @defopcode((0x4C, 'abs', 3), (0x6C, 'abs ind', 5))
     def op_jmp(self, offset):
         self.reg.pc = offset
 
