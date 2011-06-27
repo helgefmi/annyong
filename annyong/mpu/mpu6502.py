@@ -2,7 +2,6 @@ from inspect import getargspec
 
 from annyong.util.bitset import Bitset
 from annyong.mpu.debug import trace_step
-from annyong.mpu.flags import *
 from annyong.memory import Memory
 from annyong.util import signed_byte
 
@@ -52,7 +51,16 @@ class Mpu6502(object):
             self.ac = None          # Accumulator, 8 bit
             self.x = None           # General register, 8 bit
             self.y = None           # General register, 8 bit
-            self.ps = Bitset(8)     # Processor Status, 8 * 1 bit
+            self.ps = Bitset(       # Processor Status, 8 * 1 bit
+                ('carry', 1),
+                ('zero', 1),
+                ('interrupt', 1),
+                ('decimal', 1),
+                ('break_', 1),
+                ('sixth', 1),
+                ('overflow', 1),
+                ('negative', 1),
+            )
 
     def __init__(self):
         self._addrmodes = {}
@@ -93,8 +101,8 @@ class Mpu6502(object):
                 self._opcodes[opcode] = (fn, self._addrmodes[mnemonic], cycles)
 
     def _set_nz_flags(self, value):
-        self.reg.ps[FLAG_ZERO] = 0 == value
-        self.reg.ps[FLAG_NEGATIVE] = value & (1 << 7)
+        self.reg.ps.zero = 0 == value
+        self.reg.ps.negative = value >> 7
 
     def set_trace_output(self, output):
         self.trace_output = output
@@ -335,22 +343,22 @@ class Mpu6502(object):
 
     @defopcode((0x24, 'zp', 3), (0x2C, 'abs', 4))
     def op_bit(self, value):
-        self.reg.ps[FLAG_ZERO] = 0 == value & self.reg.ac
-        self.reg.ps[FLAG_NEGATIVE] = value & (1 << 7)
-        self.reg.ps[FLAG_OVERFLOW] = value & (1 << 6)
+        self.reg.ps.zero = 0 == value & self.reg.ac
+        self.reg.ps.negative = value >> 7
+        self.reg.ps.overflow = (value >> 6) & 1
 
     @opcode_use_extra_cycles
     @defopcode((0x69, 'imm', 2), (0x65, 'zp', 3), (0x75, 'zp x', 4),
                (0x6D, 'abs', 4), (0x7D, 'abs x', 4), (0x79, 'abs y', 4),
                (0x61, 'zp ind x', 6), (0x71, 'zp ind y', 5))
     def op_adc(self, value):
-        carry = self.reg.ps[FLAG_CARRY]
+        carry = self.reg.ps.carry
 
         # TODO: Decimal mode removed temporarily.
 
         result = signed_byte(value) + signed_byte(self.reg.ac) + carry
-        self.reg.ps[FLAG_OVERFLOW] = result > 127 or result < -128
-        self.reg.ps[FLAG_CARRY] = value + self.reg.ac + carry > 255
+        self.reg.ps.overflow = result > 127 or result < -128
+        self.reg.ps.carry = value + self.reg.ac + carry > 255
         result &= 0xFF
 
         self.reg.ac = result
@@ -366,7 +374,7 @@ class Mpu6502(object):
     @defopcode((0x0A, 'acc', 2), (0x06, 'zp', 5), (0x16, 'zp x', 6),
                (0x0E, 'abs', 6), (0x1E, 'abs x', 7))
     def op_asl(self, offset, value):
-        self.reg.ps[FLAG_CARRY] = value & (1 << 7)
+        self.reg.ps.carry = value >> 7
         value = (value << 1) & 0xFF
 
         if offset is None: # 0x0A
@@ -378,7 +386,7 @@ class Mpu6502(object):
     @defopcode((0x4A, 'acc', 2), (0x46, 'zp', 5), (0x56, 'zp x', 6),
                (0x4E, 'abs', 6), (0x5E, 'abs x', 7))
     def op_lsr(self, offset, value):
-        self.reg.ps[FLAG_CARRY] = value & 1
+        self.reg.ps.carry = value & 1
         value >>= 1
 
         if offset is None: # 0x4A
@@ -390,8 +398,8 @@ class Mpu6502(object):
     @defopcode((0x2A, 'acc', 2), (0x26, 'zp', 5), (0x36, 'zp x', 6),
                (0x2E, 'abs', 6), (0x3E, 'abs x', 7))
     def op_rol(self, offset, value):
-        carry = self.reg.ps[FLAG_CARRY]
-        self.reg.ps[FLAG_CARRY] = value & (1 << 7)
+        carry = self.reg.ps.carry
+        self.reg.ps.carry = value >> 7
 
         value = ((value << 1) + carry) & 0xFF
 
@@ -406,8 +414,8 @@ class Mpu6502(object):
     def op_ror(self, offset, value):
         new_carry = value & 1
 
-        value = (value >> 1) | (self.reg.ps[FLAG_CARRY] << 7)
-        self.reg.ps[FLAG_CARRY] = new_carry
+        value = (value >> 1) | (self.reg.ps.carry << 7)
+        self.reg.ps.carry = new_carry
 
         if offset is None: # 0x6A
             self.reg.ac = value
@@ -420,17 +428,17 @@ class Mpu6502(object):
                (0xCD, 'abs', 4), (0xDD, 'abs x', 4), (0xD9, 'abs y', 4),
                (0xC1, 'zp ind x', 6), (0xD1, 'zp ind y', 5))
     def op_cmp(self, value):
-        self.reg.ps[FLAG_CARRY] = self.reg.ac >= value
+        self.reg.ps.carry = self.reg.ac >= value
         self._set_nz_flags((self.reg.ac - value) & 0xFF)
 
     @defopcode((0xE0, 'imm', 2), (0xE4, 'zp', 3), (0xEC, 'abs', 4))
     def op_cpx(self, value):
-        self.reg.ps[FLAG_CARRY] = self.reg.x >= value
+        self.reg.ps.carry = self.reg.x >= value
         self._set_nz_flags((self.reg.x - value) & 0xFF)
 
     @defopcode((0xC0, 'imm', 2), (0xC4, 'zp', 3), (0xCC, 'abs', 4))
     def op_cpy(self, value):
-        self.reg.ps[FLAG_CARRY] = self.reg.y >= value
+        self.reg.ps.carry = self.reg.y >= value
         self._set_nz_flags((self.reg.y - value) & 0xFF)
 
     @defopcode((0xE6, 'zp', 5), (0xF6, 'zp x', 6), (0xEE, 'abs', 6),
@@ -502,7 +510,7 @@ class Mpu6502(object):
 
     @defopcode_implied(0x08, 3)
     def op_php(self):
-        self.push_byte(int(self.reg.ps) | (1 << FLAG_BREAK))
+        self.push_byte(int(self.reg.ps) | (1 << 4))
 
     @defopcode_implied(0x68, 4)
     def op_pla(self):
@@ -511,36 +519,36 @@ class Mpu6502(object):
 
     @defopcode_implied(0x28, 4)
     def op_plp(self):
-        ps = self.pop_byte() & ~(1 << FLAG_BREAK) | (1 << FLAG_SIXTH)
+        ps = self.pop_byte() & ~(1 << 4) | (1 << 5)
         self.reg.ps.set(ps)
 
     @defopcode_implied(0x18, 2)
     def op_clc(self):
-        self.reg.ps[FLAG_CARRY] = 0
+        self.reg.ps.carry = 0
 
     @defopcode_implied(0xD8, 2)
     def op_cld(self):
-        self.reg.ps[FLAG_DECIMAL] = 0
+        self.reg.ps.decimal = 0
 
     @defopcode_implied(0x58, 2)
     def op_cli(self):
-        self.reg.ps[FLAG_INTERRUPT] = 0
+        self.reg.ps.interrupt = 0
 
     @defopcode_implied(0xB8, 2)
     def op_clv(self):
-        self.reg.ps[FLAG_OVERFLOW] = 0
+        self.reg.ps.overflow = 0
 
     @defopcode_implied(0x38, 2)
     def op_sec(self):
-        self.reg.ps[FLAG_CARRY] = 1
+        self.reg.ps.carry = 1
 
     @defopcode_implied(0xF8, 2)
     def op_sed(self):
-        self.reg.ps[FLAG_DECIMAL] = 1
+        self.reg.ps.decimal = 1
 
     @defopcode_implied(0x78, 2)
     def op_sei(self):
-        self.reg.ps[FLAG_INTERRUPT] = 1
+        self.reg.ps.interrupt = 1
 
     @defopcode_implied(0xEA, 2)
     def op_nop(self):
@@ -549,12 +557,12 @@ class Mpu6502(object):
     @defopcode_implied(0x00, 7)
     def op_brk(self):
         self.push_word((self.reg.pc + 1) & 0xFFFF)
-        self.push_byte(int(self.reg.ps) | (1 << FLAG_BREAK))
+        self.push_byte(int(self.reg.ps) | (1 << 4))
         self.reg.pc = self.memory.get_word(0xFFFE)
 
     @defopcode_implied(0x40, 6)
     def op_rti(self):
-        self.reg.ps.set(self.pop_byte() | (1 << FLAG_SIXTH))
+        self.reg.ps.set(self.pop_byte() | (1 << 5))
         self.reg.pc = self.pop_word()
 
     @defopcode((0x4C, 'abs', 3), (0x6C, 'abs ind', 5))
@@ -576,12 +584,12 @@ class Mpu6502(object):
                (0x50, 'imm', 2), (0x70, 'imm', 2))
     def op_branch(self, value, opcode):
         flags = {
-            0x90: FLAG_CARRY,    0xB0: FLAG_CARRY,
-            0xD0: FLAG_ZERO,     0xF0: FLAG_ZERO,
-            0x10: FLAG_NEGATIVE, 0x30: FLAG_NEGATIVE,
-            0x50: FLAG_OVERFLOW, 0x70: FLAG_OVERFLOW,
+            0x90: 'carry',    0xB0: 'carry',
+            0xD0: 'zero',     0xF0: 'zero',
+            0x10: 'negative', 0x30: 'negative',
+            0x50: 'overflow', 0x70: 'overflow',
         }
-        cond = bool(self.reg.ps[flags[opcode]])
+        cond = bool(getattr(self.reg.ps, flags[opcode]))
         branch_if_true = opcode in (0xB0, 0xF0, 0x30, 0x70)
 
         if cond == branch_if_true:
@@ -650,7 +658,7 @@ class Mpu6502(object):
                (0x1F, 'abs x', 7), (0x1B, 'abs y', 7), (0x03, 'zp ind x', 8),
                (0x13, 'zp ind y', 8))
     def op_slo(self, offset, value):
-        self.reg.ps[FLAG_CARRY] = value & (1 << 7)
+        self.reg.ps.carry = value >> 7
         value = (value << 1) & 0xFF
         self.op_ora(value)
         self.memory.set_byte(offset, value)
@@ -660,8 +668,8 @@ class Mpu6502(object):
                (0x3F, 'abs x', 7), (0x3B, 'abs y', 7), (0x23, 'zp ind x', 8),
                (0x33, 'zp ind y', 8))
     def op_rla(self, offset, value):
-        carry = self.reg.ps[FLAG_CARRY]
-        self.reg.ps[FLAG_CARRY] = value & (1 << 7)
+        carry = self.reg.ps.carry
+        self.reg.ps.carry = value >> 7
         value = ((value << 1) & 0xFF) | carry
         self.op_and(value)
         self.memory.set_byte(offset, value)
@@ -674,7 +682,7 @@ class Mpu6502(object):
         carry = value & 1
         value >>= 1
         self.op_eor(value)
-        self.reg.ps[FLAG_CARRY] = carry
+        self.reg.ps.carry = carry
         self.memory.set_byte(offset, value)
 
     @opcode_invalid
@@ -682,8 +690,8 @@ class Mpu6502(object):
                (0x7F, 'abs x', 7), (0x7B, 'abs y', 7), (0x63, 'zp ind x', 8),
                (0x73, 'zp ind y', 8))
     def op_rra(self, offset, value):
-        carry = self.reg.ps[FLAG_CARRY]
-        self.reg.ps[FLAG_CARRY] = value & 1
+        carry = self.reg.ps.carry
+        self.reg.ps.carry = value & 1
         value = (value >> 1) | (carry << 7)
         self.op_adc(value)
         self.memory.set_byte(offset, value)

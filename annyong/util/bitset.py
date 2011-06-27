@@ -1,33 +1,23 @@
 from array import array
 
 class Bitset(object):
-    """
-    >>> b = Bitset(8)
-    >>> b[0] = 1
-    >>> b[1] = True
-    >>> b[2] = False
-    >>> b[3] = 2
-    >>> b[4] = 0.0
-    >>> b[5] = None
-    >>> b[6] = b
-    >>> b[7] = b[6]
-    >>> b
-    203
-    >>> len(b)
-    8
-    >>> [1 if b[i] else 0 for i in range(8)]
-    [1, 1, 0, 1, 0, 0, 1, 1]
-    """
-    def __init__(self, size):
-        self._size = size
-        self._mem = None
-        self.reset()
+    def __init__(self, *args):
+        self._num = 0
+        self._format = {}
 
-    def __getitem__(self, key):
-        return self._mem[key]
+        pos = 0
+        for key, value in args:
+            self._format[key] = {
+                'bits': value,
+                'pos': pos,
+                'mask': ((2 ** value) - 1) << pos,
+            }
+            pos += value
+        self._size = pos
+        self._initialized = True
 
-    def __setitem__(self, key, value):
-        self._mem[key] = 1 if value else 0
+    def __trunc__(self):
+        return self._num
 
     def __len__(self):
         return self._size
@@ -36,15 +26,25 @@ class Bitset(object):
         return '%d' % int(self)
     __repr__ = __str__
 
-    def set(self, value):
-        for i in xrange(self._size):
-            self[i] = value & (1 << i)
+    def __setattr__(self, key, value):
+        if hasattr(self, '_format') and key in self._format:
+            value = int(value)
+            item = self._format[key]
+            self._num &= ~item['mask']
+            self._num |= (value << item['pos']) & item['mask']
+        elif hasattr(self, key) or not hasattr(self, '_initialized'):
+            super(Bitset, self).__setattr__(key, value)
+        else:
+            raise AttributeError, key
+
+    def __getattr__(self, key):
+        if hasattr(self, '_format') and key in self._format:
+            item = self._format[key]
+            return (self._num & item['mask']) >> item['pos']
+        raise AttributeError, key
+
+    def set(self, num):
+        self._num = num
 
     def reset(self):
-        self._mem = array('b', [0] * self._size)
-
-    def __trunc__(self):
-        value = 0
-        for i in xrange(self._size):
-            value |= self._mem[i] << i
-        return value
+        self._num = 0

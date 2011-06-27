@@ -2,7 +2,6 @@ import os
 import sys
 
 from annyong.mpu.mpu6502 import Mpu6502
-from annyong.mpu.flags import *
 
 class TestSuite(object):
     def __init__(self):
@@ -134,19 +133,19 @@ class TestSuite(object):
         elif str_source.startswith('flags.'):
             char_val = str_source[6]
             if char_val == 'b':
-                source = self.mpu.reg.ps[FLAG_BREAK]
+                source = self.mpu.reg.ps.break_
             elif char_val == 'z':
-                source = self.mpu.reg.ps[FLAG_ZERO]
+                source = self.mpu.reg.ps.zero
             elif char_val == 'n':
-                source = self.mpu.reg.ps[FLAG_NEGATIVE]
+                source = self.mpu.reg.ps.negative
             elif char_val == 'c':
-                source = self.mpu.reg.ps[FLAG_CARRY]
+                source = self.mpu.reg.ps.carry
             elif char_val == 'd':
-                source = self.mpu.reg.ps[FLAG_DECIMAL]
+                source = self.mpu.reg.ps.decimal
             elif char_val == 'i':
-                source = self.mpu.reg.ps[FLAG_INTERRUPT]
+                source = self.mpu.reg.ps.interrupt
             elif char_val == 'v':
-                source = self.mpu.reg.ps[FLAG_OVERFLOW]
+                source = self.mpu.reg.ps.overflow
             else:
                 print 'Invalid source for assertion: %s' % str_source
                 sys.exit(1)
