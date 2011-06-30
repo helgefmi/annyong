@@ -68,6 +68,7 @@ class Mpu6502(object):
         self.reg = Mpu6502.Registers()
         self.memory = Memory(0x10000)
         self.cycles = 0
+        self.halt_cycles = None
         self.trace_output = None
 
         self._init_addrmodes()
@@ -116,6 +117,7 @@ class Mpu6502(object):
         self.reg.sp = 0xFF
         self.memory.reset()
         self.cycles = 0
+        self.halt_cycles = 0
 
     def run(self, org=None):
         if org is None:
@@ -125,7 +127,24 @@ class Mpu6502(object):
         while True:
             self.step()
 
+    def interrupt(self, type):
+        if type == 'reset':
+            self.reg.pc = self.memory.get_word(0xFFFC)
+        else:
+            assert False, type
+
+    def add_halt_cycles(self, cycles):
+        self.halt_cycles += cycles
+
     def step(self):
+        if self.halt_cycles > 0:
+            halt_cycles = min(8, self.halt_cycles)
+            self.cycles += halt_cycles
+            self.halt_cycles -= halt_cycles
+            return halt_cycles
+
+        prev_cycles = self.cycles
+
         opcode = self.memory.get_byte(self.reg.pc)
         if not self._opcodes[opcode]:
             raise Mpu6502.InvalidOpcodeException(opcode)
@@ -135,6 +154,8 @@ class Mpu6502(object):
 
         self.reg.pc = (self.reg.pc + 1) & 0xFFFF
         self.execute_opcode(opcode)
+
+        return self.cycles - prev_cycles
 
     def execute_opcode(self, opcode):
         fn, addrmode, cycles = self._opcodes[opcode]
@@ -510,7 +531,7 @@ class Mpu6502(object):
 
     @defopcode_implied(0x08, 3)
     def op_php(self):
-        self.push_byte(int(self.reg.ps) | (1 << 4))
+        self.push_byte(int(self.reg.ps) | (1 << 4) | (1 << 5))
 
     @defopcode_implied(0x68, 4)
     def op_pla(self):
@@ -557,7 +578,7 @@ class Mpu6502(object):
     @defopcode_implied(0x00, 7)
     def op_brk(self):
         self.push_word((self.reg.pc + 1) & 0xFFFF)
-        self.push_byte(int(self.reg.ps) | (1 << 4))
+        self.push_byte(int(self.reg.ps) | (1 << 4) | (1 << 5))
         self.reg.pc = self.memory.get_word(0xFFFE)
 
     @defopcode_implied(0x40, 6)

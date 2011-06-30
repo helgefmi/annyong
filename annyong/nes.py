@@ -12,7 +12,7 @@ class NES(object):
     )
     def __init__(self):
         self.mpu = Mpu6502()
-        self.ppu = PPU()
+        self.ppu = PPU(self)
         self.rom = Rom()
         self.mapper = None
 
@@ -35,5 +35,17 @@ class NES(object):
     def start(self):
         tracefile = open('trace.log', 'w')
         self.mpu.set_trace_output(tracefile)
-        self.mpu.run()
-        tracefile.close()
+        self.mpu.interrupt('reset')
+        while True:
+            self.frame()
+
+    def frame(self):
+        self.ppu.start_frame()
+        looping = True
+        while looping:
+            cycles = self.mpu.step()
+            for _ in range(cycles * 3):
+                self.ppu.step()
+                if self.ppu.scanline == 261:
+                    looping = False
+                    break
