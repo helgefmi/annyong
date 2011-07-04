@@ -1,7 +1,8 @@
 import struct
-from annyong.util import signed_byte
 
-def disassemble(fn, opcode, addrmode, operands, simple_trace):
+def disassemble(mpu, opcode, operands, nestest_trace):
+    fn, addrmode, _ = mpu._opcodes[opcode]
+
     # To have better code, these opcodes were writting as one method in the mpu,
     # so we can't infer their mnemonics by looking at the method name.
     branch_opcodes = {
@@ -15,7 +16,7 @@ def disassemble(fn, opcode, addrmode, operands, simple_trace):
         # This will also make NOP2 into NOP.
         asm = fn.__name__[3:6].upper()
 
-    if simple_trace:
+    if nestest_trace:
         return asm
 
     addrmode_fmts = {
@@ -33,47 +34,9 @@ def disassemble(fn, opcode, addrmode, operands, simple_trace):
         'abs ind': '($%04X)',
     }
 
-    asm_extra = ''
     if operands:
         bytes = ''.join(chr(o) for o in operands)
         operands = struct.unpack('H' if len(bytes) > 1 else 'B', bytes)[0]
 
-    asm_extra = ' %s' % (addrmode_fmts[addrmode.mnemonic] % operands)
-    asm += asm_extra
+    asm += ' %s' % (addrmode_fmts[addrmode.mnemonic] % operands)
     return asm.strip().ljust(11)
-
-def trace_step(mpu, opcode):
-    fn, addrmode, _ = mpu._opcodes[opcode]
-
-    num_operands = addrmode.num_operands
-    operands = [mpu.memory.get_byte(mpu.reg.pc + i)
-                    for i in xrange(1, num_operands + 1)]
-
-    simple_trace = getattr(mpu.trace_output, 'simple_trace', False)
-    asm = disassemble(fn, opcode, addrmode, operands, simple_trace)
-
-    cyc = (mpu.cycles * 3) % 341
-    sl = (mpu.cycles * 3) / 341
-
-    sl += 241
-    while sl >= 261:
-        sl -= 262
-
-    mpu.trace_output.write(
-        ('%04X  %02X %s %s%s  A:%02X '
-         'X:%02X Y:%02X P:%02X SP:%02X CYC:%3d SL:%d\n') % (
-            mpu.reg.pc,
-            opcode,
-            ' '.join('%02X' % o for o in operands).ljust(5),
-            '*' if getattr(fn, 'invalid_opcode', False) else ' ',
-            asm,
-            mpu.reg.ac,
-            mpu.reg.x,
-            mpu.reg.y,
-            int(mpu.reg.ps),
-            mpu.reg.sp,
-            cyc,
-            sl,
-        )
-    )
-    mpu.trace_output.flush()

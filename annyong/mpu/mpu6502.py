@@ -1,7 +1,7 @@
 from inspect import getargspec
 
 from annyong.util.bitset import Bitset
-from annyong.mpu.debug import trace_step
+from annyong.mpu.debug import disassemble
 from annyong.memory import Memory
 from annyong.util import signed_byte
 
@@ -62,14 +62,14 @@ class Mpu6502(object):
                 ('negative', 1),
             )
 
-    def __init__(self):
+    def __init__(self, nes):
+        self.nes = nes
         self._addrmodes = {}
         self._opcodes = [None] * 256
         self.reg = Mpu6502.Registers()
         self.memory = Memory(0x10000)
         self.cycles = 0
         self.halt_cycles = None
-        self.trace_output = None
 
         self._init_addrmodes()
         self._init_opcodes()
@@ -105,9 +105,6 @@ class Mpu6502(object):
         self.reg.ps.zero = 0 == value
         self.reg.ps.negative = value >> 7
 
-    def set_trace_output(self, output):
-        self.trace_output = output
-
     def reset(self):
         self.reg.x = 0
         self.reg.y = 0
@@ -119,6 +116,23 @@ class Mpu6502(object):
         self.cycles = 0
         self.halt_cycles = 0
 
+    def interrupt(self, type):
+        self.nes.log('[mpu] ------ Interrupt: %s ------' % type)
+        if type == 'reset':
+            self.reg.pc = self.memory.get_word(0xFFFC)
+        elif type == 'nmi':
+            self.push_word(self.reg.pc)
+            self.push_byte(int(self.reg.ps))
+            self.reg.ps.interrupt = 1
+            self.cycles += 7
+            self.reg.pc = self.memory.get_word(0xFFFA)
+            return 7
+        else:
+            assert False, type
+
+    def add_halt_cycles(self, cycles):
+        self.halt_cycles += cycles
+
     def run(self, org=None):
         if org is None:
             org = self.memory.get_word(0xFFFC)
@@ -126,15 +140,6 @@ class Mpu6502(object):
 
         while True:
             self.step()
-
-    def interrupt(self, type):
-        if type == 'reset':
-            self.reg.pc = self.memory.get_word(0xFFFC)
-        else:
-            assert False, type
-
-    def add_halt_cycles(self, cycles):
-        self.halt_cycles += cycles
 
     def step(self):
         if self.halt_cycles > 0:
@@ -149,8 +154,8 @@ class Mpu6502(object):
         if not self._opcodes[opcode]:
             raise Mpu6502.InvalidOpcodeException(opcode)
 
-        if self.trace_output:
-            trace_step(self, opcode)
+        if self.nes.logfile:
+            self.trace(opcode)
 
         self.reg.pc = (self.reg.pc + 1) & 0xFFFF
         self.execute_opcode(opcode)
@@ -716,5 +721,71 @@ class Mpu6502(object):
         value = (value >> 1) | (carry << 7)
         self.op_adc(value)
         self.memory.set_byte(offset, value)
+
+    # }}}
+
+    # trace / debug {{{
+
+    def trace(self, opcode):
+        fn, addrmode, _ = self._opcodes[opcode]
+
+        num_operands = addrmode.num_operands
+        operands = [self.memory.get_byte(self.reg.pc + i)
+                        for i in xrange(1, num_operands + 1)]
+
+        nestest_trace = getattr(self.nes.logfile, 'nestest_trace', False)
+        asm = disassemble(self, opcode, operands, nestest_trace)
+
+        cyc = (self.cycles * 3) % 341
+        if nestest_trace:
+            sl = (self.cycles * 3) / 341
+            sl += 241
+            while sl >= 261:
+                sl -= 262
+        else:
+            sl = self.nes.ppu.scanline
+            flags = ''
+            for key, val in (('negative', 'n'), ('overflow', 'v'),
+                               ('sixth', 'u'), ('break_', 'b'),
+                               ('decimal', 'd'), ('interrupt', 'i'),
+                               ('zero', 'z'), ('carry', 'c')):
+                flags += val.upper() if getattr(self.reg.ps, key) else val
+
+        if nestest_trace:
+            string = (
+                ('%04X  %02X %s %s%s  A:%02X '
+                'X:%02X Y:%02X P:%02X SP:%02X CYC:%3d SL:%d') % (
+                    self.reg.pc,
+                    opcode,
+                    ' '.join('%02X' % o for o in operands).ljust(5),
+                    '*' if getattr(fn, 'invalid_opcode', False) else ' ',
+                    asm,
+                    self.reg.ac,
+                    self.reg.x,
+                    self.reg.y,
+                    int(self.reg.ps),
+                    self.reg.sp,
+                    cyc,
+                    sl,
+                )
+            )
+        else:
+            string = (
+                ('%04X  %02X %s %s%s  A:%02X '
+                'X:%02X Y:%02X S:%02X P:%s') % (
+                    self.reg.pc,
+                    opcode,
+                    ' '.join('%02X' % o for o in operands).ljust(5),
+                    '*' if getattr(fn, 'invalid_opcode', False) else ' ',
+                    asm,
+                    self.reg.ac,
+                    self.reg.x,
+                    self.reg.y,
+                    self.reg.sp,
+                    flags,
+                )
+            )
+
+        self.nes.log(string)
 
     # }}}

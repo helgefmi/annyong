@@ -6,27 +6,27 @@ from annyong.nes import NES
 from annyong.mpu.mpu6502 import Mpu6502
 
 def run_nestest(rom_path):
-    nes = NES()
+    # This test compares the trace output of our mpu and nestest.log, so we need
+    # to capture this.
+    logfile = StringIO()
+    logfile.nestest_trace = True
+
+    nes = NES(logfile=logfile)
     nes.load_rom(rom_path)
 
     # This is just so the logs can be diffed
     nes.mpu.reg.ps.set(0x24)
     nes.mpu.reg.sp = 0xFD
 
-    # This test compares the trace output of our mpu and nestest.log, so we need
-    # to capture this.
-    strio = StringIO()
-    strio.simple_trace = True
-    nes.mpu.set_trace_output(strio)
     try:
         nes.mpu.run(0xC000)
     except nes.mpu.InvalidOpcodeException:
         pass
 
-    trace_output = nes.mpu.trace_output.getvalue()
-    trace_lines = trace_output.strip().split('\n')
+    log_output = nes.logfile.getvalue()
+    trace_lines = log_output.strip().split('\n')
     with open('trace.log', 'w') as file:
-        file.write(trace_output)
+        file.write(log_output)
 
     nestest_logpath = rom_path.replace('.nes', '.log')
     with open(nestest_logpath, 'r') as file:

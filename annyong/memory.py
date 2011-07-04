@@ -23,7 +23,7 @@ class Memory(object):
 
     def set_byte(self, offset, value):
         if self._write_subscribers[offset]:
-            return self._write_subscribers[offset](offset, value)
+            return self._write_subscribers[offset](offset, value=value)
         self._array[offset] = value
 
     def set_word(self, offset, value):
