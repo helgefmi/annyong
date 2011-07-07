@@ -19,7 +19,7 @@ class Mapper0(object):
             return memory.get_byte(new_offset)
 
         for i in xrange(start, end, mirror_size):
-            memory.subscribe_to_read(i, i + mirror_size, reader)
+            memory.subscribe_to_read( i, i + mirror_size, reader)
             memory.subscribe_to_write(i, i + mirror_size, writer)
 
     def _disallow_write(self, memory, start, end):
@@ -33,7 +33,6 @@ class Mapper0(object):
         mpu = self.nes.mpu
         ppu = self.nes.ppu
         rom = self.nes.rom
-
 
         #### SETUP MPU MEMORY ####
         # "Memory locations $0000-$07FF are mirrored three times at $0800-$1FFF"
@@ -54,29 +53,7 @@ class Mapper0(object):
         bank2 = rom.prg_banks[1] if len(rom.prg_banks) > 1 else rom.prg_banks[0]
         mpu.memory.copy_from_raw(bank2, 0xC000, 0x4000)
 
-
-        #### SETUP PPU MEMORY ####
-        # Load CHR ROM into ppu memory
-        if len(rom.chr_banks) > 0:
-            ppu.memory.copy_from_raw(rom.chr_banks[0], 0x0000, 0x2000)
-
-        # Set up mirroring of name tables
-        if rom.mirroring == 'h':
-            self._mirror_memory(ppu.memory, 0x2000, 0x0400, 0x2400, 0x2800)
-            self._mirror_memory(ppu.memory, 0x2800, 0x0400, 0x2C00, 0x3000)
-        elif rom.mirroring == 'v':
-            self._mirror_memory(ppu.memory, 0x2000, 0x0400, 0x2800, 0x2C00)
-            self._mirror_memory(ppu.memory, 0x2400, 0x0400, 0x2C00, 0x3000)
-
-        # These sections are always mirrored
-        self._mirror_memory(ppu.memory, 0x2000, 0x0F00, 0x3000, 0x3F00)
-        self._mirror_memory(ppu.memory, 0x0000, 0x1000, 0x4000, 0x8000)
-
-        # "Addresses $3F10/$3F14/$3F18/$3F1C are mirrors of
-        # $3F00/$3F04/$3F08/$3F0C."
-        for i in xrange(0x3F00, 0x3F10, 0x4):
-            self._mirror_memory(ppu.memory, i, 0x0001, i + 0x0010, i + 0x0011)
-
+        # PPU registers
         mpu.memory.subscribe_to_write(0x2000, 0x2001, ppu.reg_controller)
         mpu.memory.subscribe_to_write(0x2001, 0x2002, ppu.reg_mask)
         mpu.memory.subscribe_to_read( 0x2002, 0x2003, ppu.reg_status)
@@ -88,3 +65,11 @@ class Mapper0(object):
         mpu.memory.subscribe_to_read( 0x2007, 0x2008, ppu.reg_vram_data)
         mpu.memory.subscribe_to_write(0x2007, 0x2008, ppu.reg_vram_data)
         mpu.memory.subscribe_to_write(0x4014, 0x4015, ppu.reg_oam_transfer)
+
+        #### SETUP PPU MEMORY ####
+        # Load CHR ROM into ppu memory
+        for i, raw in enumerate(rom.chr_banks):
+            ppu.ptables[i].copy_from_raw(raw)
+
+        # Set up mirroring of name tables
+        ppu.set_mirroring(rom.mirroring)

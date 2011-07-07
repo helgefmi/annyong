@@ -1,5 +1,7 @@
 from __future__ import absolute_import
 
+import sys
+
 from annyong.mappers.mapper0 import Mapper0
 from annyong.mpu.mpu6502 import Mpu6502
 from annyong.ppu.ppu import PPU
@@ -49,7 +51,7 @@ class NES(object):
     def frame(self):
         self.frame_num += 1
 
-        print "Frame %04d" % self.frame_num
+        sys.stderr.write("Frame %04d\n" % self.frame_num)
         self.log('Frame %04d' % self.frame_num)
 
         while True:

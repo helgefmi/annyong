@@ -27,7 +27,6 @@ class Memory(object):
         self._array[offset] = value
 
     def set_word(self, offset, value):
-        assert value < 0x10000
         self.set_byte(offset, value & 0xFF)
         self.set_byte(offset + 1, value >> 8)
 

@@ -23,7 +23,7 @@ class Bitset(object):
         return self._size
 
     def __str__(self):
-        return '%d' % int(self)
+        return str(self._num)
     __repr__ = __str__
 
     def __setattr__(self, key, value):

@@ -4,6 +4,7 @@ import sys
 from optparse import OptionParser
 
 from annyong.nes import NES
+from annyong.gui import gui
 from annyong.tests import run_nestest
 
 def main():
@@ -14,13 +15,19 @@ def main():
     parser.add_option('-f', '--file', dest='run_file',
                       action='store', metavar='FILE',
                       help='load an iNES/NES 2.0 file and start simulation')
+    parser.add_option('-g', '--gui', dest='gui',
+                      action='store_true',
+                      help='Use a graphical user interface to display stuff')
 
     opts, _ = parser.parse_args()
 
     if opts.run_file:
         nes = NES()
         nes.load_rom(opts.run_file)
-        nes.start()
+        if opts.gui:
+            gui.main(nes)
+        else:
+            nes.start()
     elif opts.nestest:
         run_nestest(opts.nestest)
 

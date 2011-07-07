@@ -117,7 +117,6 @@ class Mpu6502(object):
         self.halt_cycles = 0
 
     def interrupt(self, type):
-        self.nes.log('[mpu] ------ Interrupt: %s ------' % type)
         if type == 'reset':
             self.reg.pc = self.memory.get_word(0xFFFC)
         elif type == 'nmi':
@@ -166,25 +165,25 @@ class Mpu6502(object):
         fn, addrmode, cycles = self._opcodes[opcode]
 
         fn_args = getargspec(fn).args
-        kwargs = {
-            'offset': None,
-            'value': None,
-            'opcode': opcode,
-        }
-
+        kwargs = {}
+        
+        offset = value = None
         if addrmode.mnemonic in ('impl', 'imm', 'acc'):
-            kwargs['value'], extra_cycles = addrmode()
+            value, extra_cycles = addrmode()
         else:
-            kwargs['offset'], extra_cycles = addrmode()
+            offset, extra_cycles = addrmode()
 
         self.reg.pc += addrmode.num_operands
 
-        if kwargs['offset'] is not None:
-            kwargs['value'] = self.memory.get_byte(kwargs['offset'])
+        if 'value' in fn_args and offset is not None:
+            value = self.memory.get_byte(offset)
 
-        for key in kwargs.keys():
-            if key not in fn_args:
-                del kwargs[key]
+        if 'opcode' in fn_args:
+            kwargs['opcode'] = opcode
+        if 'value' in fn_args:
+            kwargs['value'] = value
+        if 'offset' in fn_args:
+            kwargs['offset'] = offset
 
         ret = fn(**kwargs)
         self.cycles += cycles
